@@ -1,0 +1,7 @@
+{
+  "name": "MediFlow AI",
+  "description": "Ultra-modern intelligent clinic queue and waiting management system with AI symptom triage, live token tracking, and staff control tower.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
