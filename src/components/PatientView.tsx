@@ -173,7 +173,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
     switch (urgency) {
       case "Emergency":
         return {
-          bg: "bg-rose-50 border-rose-200 text-rose-700",
+          bg: "bg-rose-50 border-rose-300 text-rose-700 animate-pulse shadow-xs shadow-rose-200/50",
           dot: "bg-rose-500 animate-ping",
           label: "Emergency Priority",
         };

@@ -680,6 +680,12 @@ export const AppointmentScheduling: React.FC<AppointmentSchedulingProps> = ({
                           }`}>
                             {apt.status.replace("_", " ").toUpperCase()}
                           </span>
+                          {apt.urgency === "Emergency" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 border border-rose-300 text-rose-700 animate-pulse shadow-xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                              Emergency
+                            </span>
+                          )}
                           {isToday && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
                               Today

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Patient, ClinicRoom, BroadcastAlert, UrgencyLevel, Appointment, AppointmentStatus } from "../types";
+import { Patient, ClinicRoom, BroadcastAlert, UrgencyLevel, Appointment, AppointmentStatus, GlobalAlert } from "../types";
 import { AddAppointmentModal } from "./AddAppointmentModal";
 import { RescheduleModal } from "./RescheduleModal";
+import { WaitTimeTrendChart } from "./WaitTimeTrendChart";
 import {
   Activity,
   Users,
@@ -47,6 +48,9 @@ interface StaffDashboardProps {
   onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => void;
   onRescheduleAppointment?: (appointmentId: string, newDate: string, newTime: string, newDoctorId?: string) => void;
   onAddAppointment?: (appointment: Appointment) => void;
+  onOpenGlobalAlertModal?: () => void;
+  activeGlobalAlert?: GlobalAlert | null;
+  onDeactivateGlobalAlert?: () => void;
 }
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
@@ -65,6 +69,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   onUpdateAppointmentStatus,
   onRescheduleAppointment,
   onAddAppointment,
+  onOpenGlobalAlertModal,
+  activeGlobalAlert,
+  onDeactivateGlobalAlert,
 }) => {
   const todayStr = "2026-09-20";
   const [activeTab, setActiveTab] = useState<"queue" | "appointments">("queue");
@@ -224,6 +231,59 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         </div>
       )}
 
+      {/* Staff Dashboard Header: Clinical Command Center & Global Alert Override */}
+      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-sky-600 uppercase tracking-wider flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5" />
+              Reception & Triage Command
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Active Intake
+            </span>
+            {activeGlobalAlert && activeGlobalAlert.active && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-300 animate-pulse flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping" />
+                Global Flash Active
+              </span>
+            )}
+          </div>
+          <h2 className="text-xl font-black text-slate-900 mt-1">Staff Control Tower</h2>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* HIGH-PRIORITY GLOBAL ALERT BUTTON */}
+          <button
+            id="staff-header-global-alert-btn"
+            type="button"
+            onClick={onOpenGlobalAlertModal}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-md ${
+              activeGlobalAlert && activeGlobalAlert.active
+                ? "bg-rose-600 hover:bg-rose-700 text-white animate-pulse border-2 border-rose-300 shadow-rose-600/30 ring-2 ring-rose-500/20"
+                : "bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-600/25 border border-rose-700/50"
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-white" />
+            <span>{activeGlobalAlert && activeGlobalAlert.active ? "Global Alert Active" : "Global Alert"}</span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-white/20">
+              {activeGlobalAlert && activeGlobalAlert.active ? "Broadcasting" : "Flash Override"}
+            </span>
+          </button>
+
+          {activeGlobalAlert && activeGlobalAlert.active && onDeactivateGlobalAlert && (
+            <button
+              type="button"
+              onClick={onDeactivateGlobalAlert}
+              className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5"
+            >
+              <Check className="w-3.5 h-3.5" />
+              Declare All Clear
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Master View Mode Switcher: Live Queue vs Dedicated Appointment Schedule */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-200/80 shadow-xs">
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -357,6 +417,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         </div>
       </div>
 
+      {/* 6-Hour Patient Wait Time Trend Chart for Resource Allocation */}
+      <WaitTimeTrendChart currentPatients={patients} currentAvgWait={avgWaitTime} />
+
       {/* Control Tower Actions Bar */}
       <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         {/* Quick Call Next Box */}
@@ -370,9 +433,16 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               {nextWaitingPatient ? (
                 <span>
                   <strong>{nextWaitingPatient.tokenNumber}</strong> ({nextWaitingPatient.name}) •{" "}
-                  <span className={nextWaitingPatient.urgency === "Emergency" ? "text-rose-600 font-bold" : "text-slate-700 font-semibold"}>
-                    {nextWaitingPatient.urgency} Priority
-                  </span>
+                  {nextWaitingPatient.urgency === "Emergency" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 border border-rose-300 text-rose-700 animate-pulse shadow-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                      Emergency Priority
+                    </span>
+                  ) : (
+                    <span className="text-slate-700 font-semibold">
+                      {nextWaitingPatient.urgency} Priority
+                    </span>
+                  )}
                 </span>
               ) : (
                 "No patients currently waiting"
@@ -410,6 +480,14 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               Call Next Patient
             </button>
           </div>
+
+          <button
+            onClick={onOpenGlobalAlertModal}
+            className="py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs shadow-md shadow-rose-600/20 transition flex items-center gap-2 cursor-pointer"
+          >
+            <ShieldAlert className="w-4 h-4" />
+            Global Alert
+          </button>
 
           <button
             onClick={onOpenBroadcastModal}
@@ -586,7 +664,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
                         {/* Urgency Badge */}
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                             isEmergency
                               ? "bg-rose-100 border-rose-300 text-rose-800 shadow-xs animate-pulse"
                               : isModerate
@@ -594,6 +672,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                               : "bg-emerald-100 border-emerald-300 text-emerald-800"
                           }`}
                         >
+                          {isEmergency && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping shrink-0" />}
                           {patient.urgency} (Score {patient.triageScore}/10)
                         </span>
 
@@ -942,14 +1021,15 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
                           {/* Urgency Badge */}
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                               isEmergency
-                                ? "bg-rose-100 border-rose-300 text-rose-800 animate-pulse"
+                                ? "bg-rose-100 border-rose-300 text-rose-800 animate-pulse shadow-xs shadow-rose-200/50"
                                 : isModerate
                                 ? "bg-amber-100 border-amber-300 text-amber-800"
                                 : "bg-emerald-100 border-emerald-300 text-emerald-800"
                             }`}
                           >
+                            {isEmergency && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping shrink-0" />}
                             {apt.urgency}
                           </span>
 

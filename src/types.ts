@@ -41,6 +41,20 @@ export interface BroadcastAlert {
   delayMinutes?: number;
 }
 
+export type GlobalAlertSeverity = "critical" | "high" | "urgent";
+
+export interface GlobalAlert {
+  id: string;
+  title: string;
+  message: string;
+  instructions: string[];
+  severity: GlobalAlertSeverity;
+  category: "evacuation" | "code_blue" | "surge" | "lockdown" | "custom";
+  timestamp: string;
+  author: string;
+  active: boolean;
+}
+
 export interface TriageAnalysisResult {
   urgency: UrgencyLevel;
   triageScore: number;

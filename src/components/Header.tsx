@@ -1,5 +1,5 @@
 import React from "react";
-import { HeartPulse, Key, Smartphone, LayoutDashboard, SplitSquareVertical, UserCheck, RefreshCw, Cpu, Download } from "lucide-react";
+import { HeartPulse, Key, Smartphone, LayoutDashboard, SplitSquareVertical, UserCheck, RefreshCw, Cpu, Download, Volume2, VolumeX } from "lucide-react";
 import { UserSession } from "../types";
 
 export type ViewMode = "patient" | "staff" | "split";
@@ -12,6 +12,8 @@ interface HeaderProps {
   onReopenOnboarding: () => void;
   apiKey: string;
   hasEnvKey: boolean;
+  soundEnabled: boolean;
+  onToggleSound: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   onReopenOnboarding,
   apiKey,
   hasEnvKey,
+  soundEnabled,
+  onToggleSound,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3 transition">
@@ -105,6 +109,29 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="font-extrabold text-sky-600">{userSession.tokenNumber}</span>
             </button>
           )}
+
+          {/* Audio Chime Toggle Button */}
+          <button
+            onClick={onToggleSound}
+            title={soundEnabled ? "Audio chimes active (click to mute)" : "Audio chimes muted (click to enable)"}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
+              soundEnabled
+                ? "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
+                : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-500"
+            }`}
+          >
+            {soundEnabled ? (
+              <>
+                <Volume2 className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                <span className="hidden md:inline">Audio On</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden md:inline">Muted</span>
+              </>
+            )}
+          </button>
 
           {/* Download Project ZIP directly */}
           <a

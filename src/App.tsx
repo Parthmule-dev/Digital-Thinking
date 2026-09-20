@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Patient, ClinicRoom, BroadcastAlert, UserSession, TriageAnalysisResult, UrgencyLevel, Appointment, AppointmentStatus } from "./types";
+import React, { useState, useEffect, useRef } from "react";
+import { Patient, ClinicRoom, BroadcastAlert, UserSession, TriageAnalysisResult, UrgencyLevel, Appointment, AppointmentStatus, GlobalAlert } from "./types";
 import { INITIAL_PATIENTS, INITIAL_ROOMS, INITIAL_BROADCASTS, INITIAL_APPOINTMENTS } from "./data/initialData";
 import { Header, ViewMode } from "./components/Header";
 import { PatientView } from "./components/PatientView";
@@ -8,7 +8,10 @@ import { OnboardingGateModal } from "./components/OnboardingGateModal";
 import { ApiKeyModal } from "./components/ApiKeyModal";
 import { DelayBroadcastModal } from "./components/DelayBroadcastModal";
 import { AddPatientModal } from "./components/AddPatientModal";
+import { GlobalAlertModal } from "./components/GlobalAlertModal";
+import { GlobalAlertOverlay } from "./components/GlobalAlertOverlay";
 import { ShieldCheck, HeartPulse, Sparkles, Smartphone, LayoutDashboard, SplitSquareVertical } from "lucide-react";
+import { playConsultationChime, playBroadcastAlertSound, playEmergencyGlobalAlertSiren } from "./utils/audioAlerts";
 
 export default function App() {
   // Session storage check for Onboarding Gate
@@ -44,6 +47,79 @@ export default function App() {
   // Modals state
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [isAddPatientModalOpen, setIsAddPatientModalOpen] = useState(false);
+  const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
+  const [globalAlert, setGlobalAlert] = useState<GlobalAlert | null>(null);
+
+  // Audio Alerts Configuration & Sound State (Enabled by default, user-toggleable)
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem("mediflow_sound_enabled");
+      return stored !== null ? stored === "true" : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("mediflow_sound_enabled", String(next));
+      } catch (e) {
+        console.warn("Storage error", e);
+      }
+      // If toggled on, play a brief preview chime
+      if (next) {
+        playConsultationChime();
+      }
+      return next;
+    });
+  };
+
+  // Keep track of previous consultation patient IDs and broadcast count to detect updates
+  const prevInConsultationIdsRef = useRef<Set<string>>(
+    new Set(INITIAL_PATIENTS.filter((p) => p.status === "in_consultation").map((p) => p.id))
+  );
+  const prevBroadcastCountRef = useRef<number>(INITIAL_BROADCASTS.length);
+  const isInitialMountRef = useRef<boolean>(true);
+
+  // Sound effect trigger: Patient status changed to 'in_consultation'
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      return;
+    }
+
+    const currentConsultationIds = new Set(
+      patients.filter((p) => p.status === "in_consultation").map((p) => p.id)
+    );
+
+    // Check if any patient newly entered 'in_consultation'
+    let newlyCalled = false;
+    currentConsultationIds.forEach((id) => {
+      if (!prevInConsultationIdsRef.current.has(id)) {
+        newlyCalled = true;
+      }
+    });
+
+    prevInConsultationIdsRef.current = currentConsultationIds;
+
+    if (newlyCalled && soundEnabled) {
+      playConsultationChime();
+    }
+  }, [patients, soundEnabled]);
+
+  // Sound effect trigger: New broadcast alert posted
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    if (broadcasts.length > prevBroadcastCountRef.current && soundEnabled) {
+      playBroadcastAlertSound();
+    }
+    prevBroadcastCountRef.current = broadcasts.length;
+  }, [broadcasts, soundEnabled]);
 
   // Check health / server key presence on mount
   useEffect(() => {
@@ -225,6 +301,24 @@ export default function App() {
     setBroadcasts((prev) => prev.map((b) => (b.id === broadcastId ? { ...b, active: false } : b)));
   };
 
+  // Staff Action: Broadcast Global Flash Alert (Screen Override for all users)
+  const handleBroadcastGlobalAlert = (alertData: Omit<GlobalAlert, "id" | "timestamp" | "active">) => {
+    const newAlert: GlobalAlert = {
+      ...alertData,
+      id: `alert-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      active: true,
+    };
+    setGlobalAlert(newAlert);
+    if (soundEnabled) {
+      playEmergencyGlobalAlertSiren();
+    }
+  };
+
+  const handleDeactivateGlobalAlert = () => {
+    setGlobalAlert(null);
+  };
+
   // Staff Action: Toggle Room Status
   const handleToggleRoomStatus = (roomId: string) => {
     setRooms((prev) =>
@@ -377,6 +471,23 @@ export default function App() {
         nextTokenNumber={`#A-${100 + patients.length + 1}`}
       />
 
+      {/* Staff Global Flash Alert Composer & Template Modal */}
+      <GlobalAlertModal
+        isOpen={isGlobalAlertModalOpen}
+        onClose={() => setIsGlobalAlertModalOpen(false)}
+        onBroadcast={handleBroadcastGlobalAlert}
+        onDeactivate={handleDeactivateGlobalAlert}
+        activeGlobalAlert={globalAlert}
+      />
+
+      {/* High-Priority Global Flash Screen Override (Overriding all screens when active) */}
+      <GlobalAlertOverlay
+        alert={globalAlert}
+        onDeactivate={handleDeactivateGlobalAlert}
+        onOpenEditModal={() => setIsGlobalAlertModalOpen(true)}
+        isStaff={viewMode === "staff" || viewMode === "split"}
+      />
+
       {/* Application Header & View Switcher */}
       <Header
         viewMode={viewMode}
@@ -386,6 +497,8 @@ export default function App() {
         onReopenOnboarding={() => setIsOnboardingOpen(true)}
         apiKey={apiKey}
         hasEnvKey={hasEnvKey}
+        soundEnabled={soundEnabled}
+        onToggleSound={handleToggleSound}
       />
 
       {/* Main Content Area */}
@@ -430,6 +543,9 @@ export default function App() {
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               onRescheduleAppointment={handleRescheduleAppointment}
               onAddAppointment={handleBookAppointment}
+              onOpenGlobalAlertModal={() => setIsGlobalAlertModalOpen(true)}
+              activeGlobalAlert={globalAlert}
+              onDeactivateGlobalAlert={handleDeactivateGlobalAlert}
             />
           </div>
         )}
@@ -506,6 +622,9 @@ export default function App() {
                   onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
                   onRescheduleAppointment={handleRescheduleAppointment}
                   onAddAppointment={handleBookAppointment}
+                  onOpenGlobalAlertModal={() => setIsGlobalAlertModalOpen(true)}
+                  activeGlobalAlert={globalAlert}
+                  onDeactivateGlobalAlert={handleDeactivateGlobalAlert}
                 />
               </div>
             </div>
